@@ -1,98 +1,119 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  FlatList,
+  Image,
+  Pressable,
+  SafeAreaView,
+  StatusBar,
+  ActivityIndicator,
+  Alert
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../services/supabase'; // Import the connection we made
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [products, setProducts] = useState<any[]>([]); // Store data from DB
+  const [loading, setLoading] = useState(true); // Show spinner while loading
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  // --- 1. FETCH DATA FROM SUPABASE ---
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      // "SELECT * FROM products"
+      const { data, error } = await supabase
+        .from('products')
+        .select('*');
+
+      if (error) {
+        Alert.alert('Error fetching data', error.message);
+      } else {
+        setProducts(data || []);
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- 2. COMPONENTS ---
+  const renderHeader = () => (
+    <View style={styles.headerContainer}>
+      <Text style={styles.location}>📍 Lekki Phase 1, Lagos</Text>
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color="#666" style={{ marginRight: 10 }} />
+        <TextInput style={styles.input} placeholder="Search database..." />
+      </View>
+      <Text style={styles.sectionTitle}>Fresh from Database</Text>
+    </View>
+  );
+
+  const renderProduct = ({ item }: { item: any }) => (
+    <View style={styles.card}>
+      <Image
+        source={{ uri: item.image_url }} // Note: Supabase column name is image_url
+        style={styles.cardImage}
+      />
+      <View style={styles.cardContent}>
+        <Text style={styles.productName}>{item.name}</Text>
+        <Text style={styles.productPrice}>₦{item.price.toLocaleString()}</Text>
+        <Pressable style={styles.addBtn}>
+          <Text style={styles.addBtnText}>Add</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+
+  // --- 3. LOADING STATE ---
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#00B761" />
+        <Text>Loading Market...</Text>
+      </View>
+    );
+  }
+
+  // --- 4. MAIN RENDER ---
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+      <FlatList
+        data={products}
+        keyExtractor={item => item.id.toString()}
+        renderItem={renderProduct}
+        numColumns={2}
+        columnWrapperStyle={styles.row}
+        ListHeaderComponent={renderHeader}
+        refreshing={loading}
+        onRefresh={fetchProducts} // Pull down to reload!
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  headerContainer: { padding: 20, backgroundColor: '#fff', marginBottom: 10 },
+  location: { fontSize: 16, fontWeight: 'bold', marginBottom: 15 },
+  searchContainer: { flexDirection: 'row', backgroundColor: '#F3F4F6', padding: 12, borderRadius: 12 },
+  input: { flex: 1, fontSize: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginTop: 15 },
+  row: { justifyContent: 'space-between', paddingHorizontal: 20 },
+  card: { backgroundColor: '#fff', width: '48%', borderRadius: 12, marginBottom: 15, overflow: 'hidden', borderWidth: 1, borderColor: '#eee' },
+  cardImage: { width: '100%', height: 120, backgroundColor: '#eee' },
+  cardContent: { padding: 10 },
+  productName: { fontSize: 14, fontWeight: '600', height: 40 },
+  productPrice: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 5 },
+  addBtn: { borderWidth: 1, borderColor: '#00B761', borderRadius: 6, paddingVertical: 4, alignItems: 'center' },
+  addBtnText: { color: '#00B761', fontSize: 12, fontWeight: 'bold' },
 });
